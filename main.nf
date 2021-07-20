@@ -30,11 +30,12 @@ nextflow.enable.dsl = 2
  */
 // paths & inputs
 baseDir          = "$HOME"
-params.ref_genome    = "$baseDir/ref/reference.fasta"
-params.reads     = "$baseDir/reads/*_{1,2}.fastq.gz"
-params.results   = "$baseDir/results"
-params.adapter   = "$baseDir/data/adapters"
-params.ref_genome_name = "NC_000962.3"
+params.ref_genome    = "$HOME/workspace/bp_project/ref_genome/K96243.fna"
+params.reads     = "$HOME/workspace/bp_project/ln_bp/*{1,2}P.fastq.gz"
+params.results   = "$HOME/nas.thavin/bp_project/snpplet/"
+params.adapter   = "$HOME/workspace/snpplet_fork/adapters/"
+params.ref_genome_name_1 = "NC_006350.1"
+params.ref_genome_name_2 = "NC_006351.1"
 
 // parameters for trimming
 params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
@@ -43,8 +44,8 @@ params.trimming_option = "SLIDINGWINDOW:4:30 MINLEN:70"
 params.mapping_option = "-c 100 -M -T 50"
 
 // parameters for variant calling
-params.haplotypecaller_option = "-ploidy 1 -mbq 20"
-params.genomicsdbimport_option = "--batch-size 200"
+params.haplotypecaller_option = "-ploidy 1 -mbq 20 --native-pair-hmm-threads 2"
+params.genomicsdbimport_option = "--batch-size 200 --reader-threads 2"
 params.genotypegvcfs_option = "-ploidy 1"
 params.sample_map_usr = "$baseDir/data/sample_map_usr.txt"  // OPTIONAL
 
@@ -55,13 +56,15 @@ params.selectvariant_option = "--exclude-filtered -select-type SNP"
 
 // Optional stop for sample QC before joint genotyping (Step 4 below)
 params.stop = false
-
+time = new Date()
 
 log.info """\
 snpplet v0.2
 ========================================================
+DATE : $time
 Reference genome sequence: $params.ref_genome
-Reference genome name: $params.ref_genome_name
+Reference genome name (1): $params.ref_genome_name_1
+Reference genome name (2): $params.ref_genome_name_2
 Raw reads: $params.reads
 Results  : $params.results
 Trimming option (for trimmomatic): $params.trimming_option
@@ -114,22 +117,23 @@ workflow {
   PREPARE_GENOME_BWA(params.ref_genome)
 
   // STEP 1: Quality trimming, with read QC before and after
-  FASTQC_BEFORE_TRIM(read_pairs)
-  MULTIQC_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.collect())
-  TRIM(
-    read_pairs,
-    params.adapter,
-    params.trimming_option
-  )
-  FASTQC_AFTER_TRIM(TRIM.out)
-  MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
+  // FASTQC_BEFORE_TRIM(read_pairs)
+  // MULTIQC_FASTQC_BEFORE_TRIM(FASTQC_BEFORE_TRIM.out.collect())
+  // TRIM(
+  //  read_pairs,
+  //  params.adapter,
+  //  params.trimming_option
+  // )
+  // FASTQC_AFTER_TRIM(TRIM.out)
+  // MULTIQC_FASTQC_AFTER_TRIM(FASTQC_AFTER_TRIM.out.collect())
 
   // STEP 2: Read mapping using BWA MEM
   READ_MAPPING_BWA(
     params.ref_genome,
-    params.ref_genome_name,
+    params.ref_genome_name_1,
+    params.ref_genome_name_2,
     PREPARE_GENOME_BWA.out,
-    TRIM.out,
+    read_pairs,
     params.mapping_option)
 
   // Report per-sample depth and coverage statistics
@@ -158,7 +162,8 @@ workflow {
     params.ref_genome,
     PREPARE_GENOME_SAMTOOLS.out,
     PREPARE_GENOME_PICARD.out, 
-    params.ref_genome_name, 
+    params.ref_genome_name_1, 
+    params.ref_genome_name_2,
     CALL_VARIANTS.out.vcf.collect(),
     CALL_VARIANTS.out.vcf_tbi.collect(),
     sample_map_usr,

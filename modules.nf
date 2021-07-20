@@ -173,7 +173,8 @@ process READ_MAPPING_BWA {
 
   input: 
     path ref_genome
-    val ref_genome_name
+    val ref_genome_name_1
+    val ref_genome_name_2
     path index
     tuple val(id), path(reads)
     val mapping_option
@@ -207,19 +208,19 @@ process READ_MAPPING_BWA {
 
   # flagstat
  
- samtools flagstat -O tsv markdup.bam > flagstat.txt
- cut -f1,2 flagstat.txt | sed 's/[\t]/ + /g' | sed "1i\\$id" | datamash transpose > ${id}_flagstat.txt
+ samtools flagstat markdup.bam | grep -E '[0-9]+ \\+ [0-9]+' -o | sed "1i\\$id" | datamash transpose > ${id}_flagstat.txt
+ # cut -f1,2 flagstat.txt | sed 's/[\t]/ + /g' | sed "1i\\$id" | datamash transpose > ${id}_flagstat.txt
  
 
   # coverage
 
  samtools coverage markdup.bam > coverage.txt
- sed "s/${ref_genome_name}/$id/;s/#rname/id/" coverage.txt > ${id}_coverage.txt
+ sed "s/${ref_genome_name_1}/${id}_1/;s/${ref_genome_name_2}/${id}_2/;s/#rname/id/" coverage.txt > ${id}_coverage.txt
   
   # depth
 
  samtools depth -a markdup.bam > depth.txt
- sed "s/${ref_genome_name}/$id/" depth.txt | awk '{c++; if(\$3>0) {l+=1; d+=\$3}}END{print (\$1, l/c*100, d/c, d/l)}' > ${id}_depth.txt
+ sed "s/${ref_genome_name_1}/${id}_1/;s/${ref_genome_name_2}/${id}_2/" depth.txt | awk '{c++; if(\$3>0) {l+=1; d+=\$3}}END{print (\$1, l/c*100, d/c, d/l)}' > ${id}_depth.txt
 
  
   
@@ -295,6 +296,7 @@ process DEPTH_OUTPUT {
  * Step 3a: Call variants for each sample
  */
 process CALL_VARIANTS {
+  label "T8"
   tag "$id"
   publishDir "$params.results/vcf", mode: 'copy'
 
@@ -344,11 +346,13 @@ process CREATE_SAMPLE_MAP {
  * Step 4: Joinly call variants from multiple samples
  */
 process JOINT_GENOTYPING {
+  label "T8"
   input:
     path ref_genome
     path index
     path dict
-    val ref_genome_name
+    val ref_genome_name_1
+    val ref_genome_name_2
     path vcf_all
     path vcf_tbi_all
     path sample_map_usr
@@ -371,7 +375,7 @@ process JOINT_GENOTYPING {
       -R $ref_genome \
       --sample-name-map ${sample_map_usr} \
       --genomicsdb-workspace-path dbcohort \
-      -L $ref_genome_name \
+      -L $ref_genome_name_1 -L $ref_genome_name_2 \
       ${genomicsdbimport_option}
 
     gatk GenotypeGVCFs -R $ref_genome -V gendb://dbcohort \
@@ -383,7 +387,7 @@ process JOINT_GENOTYPING {
       -R $ref_genome \
       ${vcf_all_list} \
       --genomicsdb-workspace-path dbcohort \
-      -L $ref_genome_name \
+      -L $ref_genome_name_1 -L $ref_genome_name_2 \
       ${genomicsdbimport_option}
 
     gatk GenotypeGVCFs -R $ref_genome -V gendb://dbcohort \
