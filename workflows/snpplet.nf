@@ -26,10 +26,8 @@ if (params.fasta) {
         exit 1, 'Reference must be specified!! either locally (--fasta) or through aws igenomes (--genome)'
     }
 
-// TODO: Add default adapter file.
 if (params.adapter) { ch_adapter = file(params.adapter) } else { ch_adapter = [] }
 
-// TODO: Declare default interval file location.
 def create_default_interval ( fasta , interval_file ) {
     interval_file.text = ''
     def is_header = { it[0].contains(">") }
@@ -42,10 +40,11 @@ def create_default_interval ( fasta , interval_file ) {
     }
     print "[INFO]: Interval file does not specified. Default interval of entire fasta will be used"
     print "[INFO]: Default GATK-style `.list` interval file is created at `assets/default_interval.list`"
-    print "[INFO]: To resume the pipeline correctly, please specify `--interval ./assets/default_interval.list` when using `-resume` flag."
+    print "[INFO]: To resume the pipeline correctly, please specify `--interval ./assets/default_interval.list` when using `-resume` flag in your next run."
 
     return interval_file
 }
+
 if (params.interval) {
     ch_interval = file(params.interval)
     extension = ch_interval.getExtension()
@@ -59,6 +58,9 @@ if (params.interval) {
     interval_list = file("$projectDir/assets/default_interval.list")
     ch_interval = create_default_interval( params.genome, interval_list )
 }
+
+if (params.sample_map) { sample_map = file(params.sample_map) } else { sample_map = [] }
+
 ch_drgstrmodel = []
 ch_dbsnp = []
 ch_dbsnp_tbi = []
@@ -198,7 +200,8 @@ workflow SNPPLET {
         ch_fasta,
         SAMTOOLS_FAIDX.out.fai,
         GATK4_CREATESEQUENCEDICTIONARY.out.dict,
-        ch_interval
+        ch_interval,
+        sample_map
     )
     ch_versions = ch_versions.mix( JOINT_CALLING.out.versions )
 

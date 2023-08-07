@@ -3,6 +3,7 @@
 //
 
 include { SAMPLESHEET_CHECK } from '../../modules/local/samplesheet_check'
+include { CREATE_SAMPLE_MAP } from '../../modules/local/create_sample_map'
 
 workflow INPUT_CHECK {
     take:
@@ -15,8 +16,13 @@ workflow INPUT_CHECK {
         .map { create_fastq_channel(it) }
         .set { reads }
 
+    CREATE_SAMPLE_MAP ( SAMPLESHEET_CHECK.out.csv )
+        .sample_map
+        .set { sample_map }
+
     emit:
     reads                                     // channel: [ val(meta), [ reads ] ]
+    sample_map                                // channel: [ all.sample_map ]
     versions = SAMPLESHEET_CHECK.out.versions // channel: [ versions.yml ]
 }
 

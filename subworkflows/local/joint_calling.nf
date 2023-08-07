@@ -16,16 +16,19 @@ workflow JOINT_CALLING {
     fai              // channel: [ val( meta ), path(fai) ]
     dict             // channel: [ val( meta ), path(dict) ]
     interval         // channel: [ val( meta ), path(interval) ]
+    sample_map       // channel: [ path sample_map ]
 
 
     main:
     ch_versions = Channel.empty()
 
     //
-    // Switch for sample_map_usr in GATK4_GENOMICSDBIMPORT
+    // Switch for sample_map in GATK4_GENOMICSDBIMPORT
     //
-    if (params.sample_map_usr) {
-        ch_vcf = params.sample_map_usr
+    if (params.sample_map) {
+        vcf.map {
+            it -> { it.plus(0, [ sample_map ]) }
+        }.set { ch_vcf }
         sample_map_flag = true
     } else {
         ch_vcf = vcf
@@ -44,6 +47,8 @@ workflow JOINT_CALLING {
         .toList()
         .map { it -> tuple(id:"joint", it[0], it[1], interval, [], []) }
         .set { ch_dbimport }
+
+    ch_dbimport.view()
 
     //
     // MODULE: Create GENOMICSDC from reference fasta and a collection of vcf file.
